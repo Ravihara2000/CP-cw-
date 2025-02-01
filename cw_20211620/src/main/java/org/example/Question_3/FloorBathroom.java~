@@ -1,0 +1,97 @@
+package org.example.Question_3;
+
+import java.util.LinkedList;
+import java.util.Queue;
+import java.util.concurrent.Semaphore;
+
+public class FloorBathroom {
+    public static final int BATHROOM_STALLS = 6;
+    public static final int NUM_EMPLOYEES = 100;
+
+    // Semaphore to manage the number of simultaneous users accessing the bathroom stalls.
+    private static final Semaphore bathroomStalls = new Semaphore(BATHROOM_STALLS);
+
+    // Lock for synchronizing access to the shared queue of available stalls.
+    private static final Object stallLock = new Object();
+
+    // Queue to track the available bathroom stalls.
+    private static Queue<Integer> availableStalls = new LinkedList<>();
+
+    public static void main(String[] args) {
+        try{
+            if(BATHROOM_STALLS <=0 || NUM_EMPLOYEES <=0){
+                throw new IllegalArgumentException("Bathroom stalls and employees must be greater than 0");
+            }
+
+            // Initialize the queue with all available stall numbers.
+            for(int i=1;i<=BATHROOM_STALLS;i++){
+                availableStalls.add(i);
+            }
+
+            // Create and start threads for each employee or student.
+            for(int i=1;i<=NUM_EMPLOYEES;i++){
+                String userType = (i % 2==0) ? "students":"employees";
+                Thread user = new Thread(new BathroomUser(i,userType),userType+"-"+i);
+                user.start();
+            }
+        }catch (IllegalArgumentException e){
+            System.out.println("Initialization failed: " + e.getMessage());
+        }
+    }
+
+    public static class BathroomUser implements Runnable{
+        private final int id;
+        private final String userType;
+        private int stallNumber;
+
+        public BathroomUser(int id, String userType) {
+            this.id = id;
+            this.userType = userType;
+        }
+
+        @Override
+        public void run() {
+            try {
+                // Acquire a semaphore permit, limiting the number of concurrent users to available stalls.
+                bathroomStalls.acquire();
+
+                // Synchronize access to the shared queue of available stalls.
+                synchronized (stallLock) {
+                    stallNumber = availableStalls.poll();
+                }
+
+                if (stallNumber == 0) {
+                    System.out.println(userType + " " + id + "could not find a stall");
+                    return;
+
+                }
+
+                System.out.println(userType + " " + id + " is using stall " + stallNumber);
+                useBathroomStall();
+
+                System.out.println(userType + " " + id + " is done using stall " + stallNumber);
+
+                // Return the stall to the queue of available stalls.
+                synchronized (stallLock) {
+                    availableStalls.add(stallNumber);
+                }
+
+            }catch (InterruptedException e) {
+                System.out.println(userType + " " + id + " was interrupted. Please try again later.");
+            }finally {
+                bathroomStalls.release();
+            }
+        }
+
+        public void useBathroomStall(){
+            try{
+                // Generate a random usage time between 2 and 4 seconds.
+                int useTime = (int)(Math.random() * 1000)+2000;
+                Thread.sleep(useTime);
+            }catch (InterruptedException e){
+                System.out.println("error during use of stall"+userType+" "+id+" "+e.getMessage());
+            }
+        }
+    }
+
+}
